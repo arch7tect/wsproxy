@@ -1,0 +1,42 @@
+[package]
+name = "wsproxy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Actix Web framework
+actix-web = "4"
+actix-web-actors = "4"
+actix = "0.13"
+actix-rt = "2"
+
+# Redis
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager", "streams"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tracing-actix-web = "0.7"
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+tokio-util = "0.7"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Configuration
+dotenvy = "0.15"
+envy = "0.4"
+
+[dev-dependencies]
+tokio-tungstenite = "0.24"
