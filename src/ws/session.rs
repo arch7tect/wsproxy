@@ -147,7 +147,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
                 self.hb = Instant::now();
                 ctx.pong(&msg);
             }
-            Ok(ws::Message::Pong(msg)) => {
+            Ok(ws::Message::Pong(_)) => {
                 self.hb = Instant::now();
             }
             Ok(ws::Message::Text(text)) => {
