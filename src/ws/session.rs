@@ -66,8 +66,8 @@ impl WsSession {
         ctx.run_interval(interval, move |act, ctx| {
             if Instant::now().duration_since(act.hb) > timeout {
                 warn!(
-                    "WebSocket heartbeat timeout for session {}, closing connection",
-                    act.session_id
+                    session_id=%act.session_id,
+                    "WebSocket heartbeat timeout, closing connection"
                 );
                 ctx.stop();
                 return;
@@ -88,12 +88,12 @@ impl WsSession {
                 match redis_client.get_pubsub().await {
                     Ok(pubsub) => {
                         let channel = format!("session:{}:down", session_id);
-                        info!("Starting Redis subscription for channel: {}", channel);
+                        info!(channel=%channel, "Starting Redis subscription");
 
                         subscribe_to_channel(channel, addr, pubsub, shutdown_token).await;
                     }
                     Err(e) => {
-                        error!("Failed to get Redis pubsub connection: {}", e);
+                        error!(error=%e, "Failed to get Redis pubsub connection");
                     }
                 }
             }
@@ -107,8 +107,8 @@ impl Actor for WsSession {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         info!(
-            "WebSocket session started: id={}, session_id={}, agent_id={}",
-            self.id, self.session_id, self.agent_id
+            id=%self.id, session_id=%self.session_id, agent_id=%self.agent_id,
+            "WebSocket session started"
         );
 
         self.start_heartbeat(ctx);
@@ -129,8 +129,8 @@ impl Actor for WsSession {
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         info!(
-            "WebSocket session stopped: id={}, session_id={}",
-            self.id, self.session_id
+            id=%self.id, session_id=%self.session_id,
+            "WebSocket session stopped"
         );
 
         if let Some(ref callback) = self.on_disconnect {
@@ -151,19 +151,19 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
                 self.hb = Instant::now();
             }
             Ok(ws::Message::Text(text)) => {
-                debug!("Received text message from client: {}", text);
+                debug!(text=%text, "Received text message from client");
                 // Phase 1: upstream message handling not implemented yet
             }
             Ok(ws::Message::Binary(_)) => {
                 warn!("Binary messages not supported");
             }
             Ok(ws::Message::Close(reason)) => {
-                info!("Client closed connection: {:?}", reason);
+                info!(reason=?reason, "Client closed connection");
                 ctx.close(reason);
                 ctx.stop();
             }
             Err(e) => {
-                error!("WebSocket protocol error: {}", e);
+                error!(error=%e, "WebSocket protocol error");
                 ctx.stop();
             }
             _ => {}
@@ -176,7 +176,7 @@ impl Handler<RedisMessage> for WsSession {
     type Result = ();
 
     fn handle(&mut self, msg: RedisMessage, ctx: &mut Self::Context) {
-        debug!("Forwarding message from Redis to WebSocket: {}", msg.payload);
+        debug!(payload=?msg.payload, "Forwarding message from Redis to WebSocket");
         ctx.text(msg.payload);
     }
 }

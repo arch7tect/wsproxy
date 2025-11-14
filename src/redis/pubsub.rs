@@ -15,21 +15,21 @@ pub async fn subscribe_to_channel<A>(
     A::Context: actix::dev::ToEnvelope<A, RedisMessage>,
 {
     if let Err(e) = pubsub.subscribe(&channel).await {
-        error!("Failed to subscribe to Redis channel {}: {}", channel, e);
+        error!(channel=%channel, error=%e,"Failed to subscribe to Redis");
         return;
     }
 
-    info!("Subscribed to Redis channel: {}", channel);
+    info!(channel=%channel, "Subscribed to Redis");
 
     let mut stream = pubsub.on_message();
 
     loop {
         tokio::select! {
             _ = shutdown_token.cancelled() => {
-                info!("Shutdown signal received, unsubscribing from channel: {}", channel);
+                info!(channel=%channel, "Shutdown signal received, unsubscribing");
                 drop(stream);
                 if let Err(e) = pubsub.unsubscribe(&channel).await {
-                    warn!("Error unsubscribing from channel {}: {}", channel, e);
+                    warn!(channel=%channel, error=%e, "Error unsubscribing");
                 }
                 break;
             }
@@ -39,12 +39,12 @@ pub async fn subscribe_to_channel<A>(
                     let payload = msg.get_payload::<String>().unwrap_or_default();
                     session_addr.do_send(RedisMessage { payload });
                 } else {
-                    warn!("Redis stream ended for channel: {}", channel);
+                    warn!(channel=%channel, "Redis stream ended");
                     break;
                 }
             }
         }
     }
 
-    info!("Pub/Sub handler stopped for channel: {}", channel);
+    info!(channel=%channel, "Pub/Sub handler stopped");
 }

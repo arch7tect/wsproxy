@@ -20,7 +20,7 @@ async fn main() -> std::io::Result<()> {
     info!("Starting wsproxy...");
 
     let config = Config::from_env().expect("Failed to load configuration");
-    info!("Configuration loaded: {:?}", config);
+    info!(config=?config, "Configuration loaded");
 
     let shutdown_token = setup_shutdown_handler();
 
@@ -31,12 +31,11 @@ async fn main() -> std::io::Result<()> {
     let app_state_clone = app_state.clone();
 
     let bind_address = format!("{}:{}", config.host, config.port);
-    info!("Starting HTTP server on {}", bind_address);
+    info!(bind_address=%bind_address, "Starting HTTP server");
 
     let server = HttpServer::new(move || {
         App::new()
             .wrap(tracing_actix_web::TracingLogger::default())
-            .wrap(middleware::Logger::default())
             .app_data(web::Data::new(app_state_clone.clone()))
             .route("/health", web::get().to(handlers::health_handler))
             .route("/ready", web::get().to(handlers::ready_handler))
@@ -51,7 +50,7 @@ async fn main() -> std::io::Result<()> {
     let server_handle = server.handle();
     let server_task = tokio::spawn(server);
 
-    info!("wsproxy is running on {}", bind_address);
+    info!(bind_address=%bind_address, "wsproxy is running");
     info!("Press Ctrl+C to stop");
 
     shutdown_token.cancelled().await;
@@ -85,5 +84,6 @@ fn init_logging() {
             fmt::layer().with_target(true).with_level(true))
         .init();
 
-    tracing::info!("RUST_LOG = {:?}", std::env::var("RUST_LOG").ok());
+    let rust_log = std::env::var("RUST_LOG").ok();
+    tracing::info!(rust_log=?rust_log, "RUST_LOG");
 }

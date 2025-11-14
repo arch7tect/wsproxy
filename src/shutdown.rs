@@ -18,7 +18,7 @@ pub fn setup_shutdown_handler() -> CancellationToken {
                 token_clone.cancel();
             }
             Err(err) => {
-                warn!("Error setting up signal handler: {}", err);
+                warn!(error=%err, "Error setting up signal handler");
             }
         }
     });
@@ -49,13 +49,15 @@ pub async fn wait_for_shutdown(
 
         if start.elapsed() >= grace_period {
             warn!(
-                "Grace period expired, forcefully closing {} remaining connections",
-                active
+                active_connections = active,
+                "Grace period expired, forcefully closing remaining connections"
             );
             break;
         }
 
-        info!("Waiting for {} active connections to close...", active);
+        info!(
+            active_connections = active,
+            "Waiting for active connections to close...");
         sleep(check_interval).await;
     }
 

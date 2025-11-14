@@ -15,12 +15,13 @@ pub async fn websocket_handler(
     let (agent_id, session_id) = path.into_inner();
 
     info!(
-        "New WebSocket connection request: agent_id={}, session_id={}",
-        agent_id, session_id
+        agent_id = %agent_id,
+        session_id = %session_id,
+        "New WebSocket connection request"
     );
 
     let count = app_state.increment_connections();
-    info!("Active connections: {}", count);
+    info!(active_connections = count, "New connection");
 
     let mut session = WsSession::new(
         session_id.clone(),
@@ -34,7 +35,7 @@ pub async fn websocket_handler(
     let app_state_clone = app_state.clone();
     session.set_on_disconnect(move || {
         let count = app_state_clone.decrement_connections();
-        info!("Connection closed. Active connections: {}", count);
+        info!(active_connections = count, "Connection closed");
     });
 
     let resp = ws::start(session, &req, stream)?;
