@@ -27,4 +27,10 @@ impl RedisClient {
         conn.publish::<_, _, ()>(channel, message).await?;
         Ok(())
     }
+
+    pub async fn check_connection(&self) -> Result<(), RedisError> {
+        let mut conn = self.get_connection().await?;
+        redis::cmd("PING").query_async::<_, ()>(&mut conn).await?;
+        Ok(())
+    }
 }

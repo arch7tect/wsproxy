@@ -94,10 +94,9 @@ spec:
         - name: RUST_LOG
           value: "info,wsproxy=info"
         livenessProbe:
-          exec:
-            command:
-            - /app/wsproxy
-            - --version
+          httpGet:
+            path: /ready
+            port: 8080
           initialDelaySeconds: 5
           periodSeconds: 30
         readinessProbe:

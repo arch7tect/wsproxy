@@ -39,7 +39,7 @@ services:
     networks:
       - wsproxy-network
     healthcheck:
-      test: ["CMD", "/app/wsproxy", "--version"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 3s
       retries: 3
