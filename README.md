@@ -147,23 +147,6 @@ src/
     └── pubsub.rs
 ```
 
-## Phase 1 MVP Status
-
-**Completed**:
-- Basic WebSocket server with Actix Web
-- Redis Pub/Sub integration
-- Message forwarding from Redis to WebSocket clients
-- Graceful shutdown with signal handling
-- Heartbeat/keepalive mechanism
-- Health check endpoints
-- Structured logging
-- Example client and publisher
-
-**Next Steps** (Phase 2):
-- Bearer token authentication via Redis
-- Handshake timing to prevent race conditions
-- Timeout handling for Redis operations
-
 ## License
 
-See LICENSE file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
