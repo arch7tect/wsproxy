@@ -1,13 +1,13 @@
 use redis::Commands;
-use std::thread;
+use std::{env, thread};
 use std::time::Duration;
 
 fn main() {
-    let session_id = std::env::args()
+    let session_id = env::args()
         .nth(1)
         .unwrap_or_else(|| "test-session-123".to_string());
 
-    let redis_url = "redis://127.0.0.1:6379";
+    let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     let channel = format!("session:{}:down", session_id);
 
     println!("Connecting to Redis at {}", redis_url);

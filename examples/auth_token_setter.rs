@@ -29,12 +29,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Auth token set:");
     println!("  Key: {}", redis_key);
     println!("  Token: {}", token);
-    println!();
-    println!("Now connect WebSocket with:");
-    println!("  curl -i -N -H \"Connection: Upgrade\" -H \"Upgrade: websocket\" \\");
-    println!("    -H \"Sec-WebSocket-Version: 13\" -H \"Sec-WebSocket-Key: test\" \\");
-    println!("    -H \"Authorization: Bearer {}\" \\", token);
-    println!("    http://127.0.0.1:4040/agent1/ws/{}", session_id);
 
     Ok(())
 }

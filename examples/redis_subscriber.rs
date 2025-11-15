@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let session_id = &args[1];
-    let redis_url = "redis://127.0.0.1:6379";
+    let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     println!("Connecting to Redis: {}", redis_url);
     let client = redis::Client::open(redis_url)?;

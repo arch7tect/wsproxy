@@ -20,8 +20,7 @@ pub async fn validate_bearer_token(
 
         let stored_token: Option<String> = conn
             .get(&redis_key)
-            .await
-            .map_err(crate::error::RedisError::ConnectionError)?;
+            .await?;
 
         match stored_token {
             Some(token) if token == provided_token => {
@@ -30,8 +29,7 @@ pub async fn validate_bearer_token(
                 let grace_period_secs = grace_period.as_secs() as i64;
                 let _: () = conn
                     .expire(&redis_key, grace_period_secs)
-                    .await
-                    .map_err(crate::error::RedisError::ConnectionError)?;
+                    .await?;
 
                 info!(
                     session_id = %session_id,
