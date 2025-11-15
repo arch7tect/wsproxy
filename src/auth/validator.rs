@@ -55,3 +55,117 @@ pub async fn validate_bearer_token(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn setup_redis() -> RedisClient {
+        let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+        RedisClient::new(&redis_url).expect("Failed to create Redis client")
+    }
+
+    async fn set_test_token(redis_client: &RedisClient, session_id: &str, token: &str) {
+        let mut conn = redis_client.get_connection().await.unwrap();
+        let key = format!("session:{}:auth", session_id);
+        let _: () = conn.set(&key, token).await.unwrap();
+    }
+
+    async fn clear_test_token(redis_client: &RedisClient, session_id: &str) {
+        let mut conn = redis_client.get_connection().await.unwrap();
+        let key = format!("session:{}:auth", session_id);
+        let _: () = conn.del(&key).await.unwrap_or(());
+    }
+
+    #[tokio::test]
+    async fn test_missing_token() {
+        let result = validate_bearer_token(
+            "test-session",
+            None,
+            &setup_redis().await,
+            Duration::from_secs(5),
+        )
+        .await;
+
+        assert!(matches!(result, Err(AuthError::MissingToken)));
+    }
+
+    #[tokio::test]
+    async fn test_valid_token() {
+        let redis_client = setup_redis().await;
+        let session_id = "test-valid-token";
+        let token = "valid-token-123";
+
+        set_test_token(&redis_client, session_id, token).await;
+
+        let result = validate_bearer_token(
+            session_id,
+            Some(token),
+            &redis_client,
+            Duration::from_secs(5),
+        )
+        .await;
+
+        assert!(result.is_ok());
+
+        let mut conn = redis_client.get_connection().await.unwrap();
+        let key = format!("session:{}:auth", session_id);
+        let stored: Option<String> = conn.get(&key).await.unwrap();
+        assert!(stored.is_none(), "Token should be deleted after successful auth");
+    }
+
+    #[tokio::test]
+    async fn test_invalid_token_mismatch() {
+        let redis_client = setup_redis().await;
+        let session_id = "test-invalid-token";
+
+        set_test_token(&redis_client, session_id, "correct-token").await;
+
+        let result = validate_bearer_token(
+            session_id,
+            Some("wrong-token"),
+            &redis_client,
+            Duration::from_secs(5),
+        )
+        .await;
+
+        assert!(matches!(result, Err(AuthError::InvalidToken)));
+
+        clear_test_token(&redis_client, session_id).await;
+    }
+
+    #[tokio::test]
+    async fn test_token_not_found_in_redis() {
+        let redis_client = setup_redis().await;
+        let session_id = "test-nonexistent";
+
+        clear_test_token(&redis_client, session_id).await;
+
+        let result = validate_bearer_token(
+            session_id,
+            Some("some-token"),
+            &redis_client,
+            Duration::from_secs(5),
+        )
+        .await;
+
+        assert!(matches!(result, Err(AuthError::InvalidToken)));
+    }
+
+    #[tokio::test]
+    async fn test_auth_timeout() {
+        let redis_url = "redis://127.0.0.1:9999";
+        let redis_client = RedisClient::new(redis_url).expect("Failed to create Redis client");
+        let session_id = "test-timeout";
+
+        let result = validate_bearer_token(
+            session_id,
+            Some("token"),
+            &redis_client,
+            Duration::from_millis(100),
+        )
+        .await;
+
+        assert!(matches!(result, Err(AuthError::Timeout)));
+    }
+}

@@ -76,7 +76,9 @@ pub async fn websocket_handler(
         info!(active_connections = count, "Connection closed");
     });
 
-    let resp = ws::start(session, &req, stream)?;
+    let resp = ws::WsResponseBuilder::new(session, &req, stream)
+        .frame_size(app_state.config.max_message_size())
+        .start()?;
 
     Ok(resp)
 }
