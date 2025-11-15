@@ -1,11 +1,13 @@
+mod auth;
 mod config;
+pub mod error;
 mod handlers;
 mod redis;
 mod shutdown;
 mod state;
 mod ws;
 
-use actix_web::{middleware, web, App, HttpServer};
+use actix_web::{web, App, HttpServer};
 use config::Config;
 use redis::RedisClient;
 use shutdown::{setup_shutdown_handler, wait_for_shutdown};
@@ -15,11 +17,11 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    init_logging();
+    let config = Config::from_env().expect("Failed to load configuration");
+
+    init_logging(&config);
 
     info!("Starting wsproxy...");
-
-    let config = Config::from_env().expect("Failed to load configuration");
     info!(config=?config, "Configuration loaded");
 
     let shutdown_token = setup_shutdown_handler();
@@ -72,16 +74,15 @@ async fn main() -> std::io::Result<()> {
     Ok(())
 }
 
-fn init_logging() {
-    use tracing_subscriber::{EnvFilter, fmt, registry};
+fn init_logging(config: &Config) {
+    use tracing_subscriber::{fmt, registry, EnvFilter};
 
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,wsproxy=debug,actix_web=info,actix_server=info"));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level));
 
     registry()
         .with(filter)
-        .with(
-            fmt::layer().with_target(true).with_level(true))
+        .with(fmt::layer().with_target(true).with_level(true))
         .init();
 
     let rust_log = std::env::var("RUST_LOG").ok();

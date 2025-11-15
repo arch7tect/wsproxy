@@ -8,7 +8,6 @@ edition = "2021"
 actix-web = "4"
 actix-web-actors = "4"
 actix = "0.13"
-actix-rt = "2"
 
 # Redis
 redis = { version = "0.24", features = ["tokio-comp", "connection-manager", "streams"] }
@@ -31,7 +30,6 @@ uuid = { version = "1", features = ["v4", "serde"] }
 tokio-util = "0.7"
 
 # Error handling
-anyhow = "1"
 thiserror = "1"
 
 # Configuration
@@ -40,3 +38,5 @@ envy = "0.4"
 
 [dev-dependencies]
 tokio-tungstenite = "0.24"
+http = "1"
+chrono = "0.4"

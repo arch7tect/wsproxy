@@ -1,3 +1,4 @@
+use crate::error::ConfigError;
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -25,13 +26,21 @@ pub struct Config {
     #[serde(default = "default_shutdown_grace_period")]
     pub shutdown_grace_period_secs: u64,
 
+    // Auth
+    #[serde(default = "default_auth_timeout")]
+    pub auth_timeout_secs: u64,
+
+    // Messages
+    #[serde(default = "default_max_message_size")]
+    pub max_message_size_bytes: usize,
+
     // Logging
     #[serde(default = "default_log_level")]
     pub log_level: String,
 }
 
 impl Config {
-    pub fn from_env() -> Result<Self, anyhow::Error> {
+    pub fn from_env() -> Result<Self, ConfigError> {
         dotenvy::dotenv().ok();
 
         let config = envy::from_env::<Config>()?;
@@ -52,13 +61,25 @@ impl Config {
         Duration::from_secs(self.shutdown_grace_period_secs)
     }
 
-    fn validate(&self) -> Result<(), anyhow::Error> {
+    pub fn auth_timeout(&self) -> Duration {
+        Duration::from_secs(self.auth_timeout_secs)
+    }
+
+    pub fn max_message_size(&self) -> usize {
+        self.max_message_size_bytes
+    }
+
+    fn validate(&self) -> Result<(), ConfigError> {
         if self.port == 0 {
-            anyhow::bail!("PORT must be greater than 0");
+            return Err(ConfigError::InvalidPort);
         }
 
         if self.redis_url.is_empty() {
-            anyhow::bail!("REDIS_URL cannot be empty");
+            return Err(ConfigError::EmptyRedisUrl);
+        }
+
+        if self.max_message_size_bytes == 0 {
+            return Err(ConfigError::InvalidMaxMessageSize);
         }
 
         Ok(())
@@ -74,6 +95,8 @@ impl Default for Config {
             ws_ping_interval_secs: default_ws_ping_interval(),
             ws_ping_timeout_secs: default_ws_ping_timeout(),
             shutdown_grace_period_secs: default_shutdown_grace_period(),
+            auth_timeout_secs: default_auth_timeout(),
+            max_message_size_bytes: default_max_message_size(),
             log_level: default_log_level(),
         }
     }
@@ -103,8 +126,16 @@ fn default_shutdown_grace_period() -> u64 {
     30
 }
 
+fn default_auth_timeout() -> u64 {
+    5
+}
+
+fn default_max_message_size() -> usize {
+    1024 * 1024
+}
+
 fn default_log_level() -> String {
-    "info".to_string()
+    "info,wsproxy=debug,actix_web=info,actix_server=info".to_string()
 }
 
 #[cfg(test)]
@@ -116,7 +147,8 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.host, "0.0.0.0");
         assert_eq!(config.port, 8080);
-        assert_eq!(config.ws_ping_interval(), Duration::from_secs(30));
+        assert_eq!(config.ws_ping_interval(), Duration::from_secs(15));
+        assert_eq!(config.max_message_size(), 1024 * 1024);
     }
 
     #[test]
@@ -126,5 +158,18 @@ mod tests {
 
         config.port = 0;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_max_message_size_validation() {
+        let mut config = Config::default();
+        assert_eq!(config.max_message_size(), 1024 * 1024);
+
+        config.max_message_size_bytes = 0;
+        assert!(config.validate().is_err());
+
+        config.max_message_size_bytes = 100;
+        assert!(config.validate().is_ok());
+        assert_eq!(config.max_message_size(), 100);
     }
 }

@@ -1,11 +1,5 @@
-use redis::{aio::ConnectionManager, Client};
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum RedisError {
-    #[error("Redis connection error: {0}")]
-    ConnectionError(#[from] redis::RedisError),
-}
+use crate::error::RedisError;
+use redis::{aio::ConnectionManager, AsyncCommands, Client};
 
 #[derive(Clone)]
 pub struct RedisClient {
@@ -26,5 +20,11 @@ impl RedisClient {
     pub async fn get_pubsub(&self) -> Result<redis::aio::PubSub, RedisError> {
         let conn = self.client.get_async_connection().await?;
         Ok(conn.into_pubsub())
+    }
+
+    pub async fn publish(&self, channel: &str, message: &str) -> Result<(), RedisError> {
+        let mut conn = self.get_connection().await?;
+        conn.publish::<_, _, ()>(channel, message).await?;
+        Ok(())
     }
 }

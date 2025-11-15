@@ -25,6 +25,8 @@ pub struct WsSession {
     pub hb_interval: Duration,
     /// Heartbeat timeout
     pub hb_timeout: Duration,
+    /// Maximum message size in bytes
+    pub max_message_size: usize,
     /// Connection counter callback
     pub on_disconnect: Option<Box<dyn Fn() + Send>>,
 }
@@ -37,6 +39,7 @@ impl WsSession {
         shutdown_token: CancellationToken,
         hb_interval: Duration,
         hb_timeout: Duration,
+        max_message_size: usize,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -47,6 +50,7 @@ impl WsSession {
             hb: Instant::now(),
             hb_interval,
             hb_timeout,
+            max_message_size,
             on_disconnect: None,
         }
     }
@@ -151,8 +155,64 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
                 self.hb = Instant::now();
             }
             Ok(ws::Message::Text(text)) => {
-                debug!(text=%text, "Received text message from client");
-                // Phase 1: upstream message handling not implemented yet
+                self.hb = Instant::now();
+
+                if text.len() > self.max_message_size {
+                    warn!(
+                        session_id=%self.session_id,
+                        message_size=text.len(),
+                        max_size=self.max_message_size,
+                        "Message exceeds maximum size"
+                    );
+                    ctx.text(
+                        serde_json::json!({
+                            "error": "Message too large",
+                            "max_size": self.max_message_size
+                        })
+                        .to_string(),
+                    );
+                    return;
+                }
+
+                if let Err(e) = serde_json::from_str::<serde_json::Value>(&text) {
+                    warn!(
+                        session_id=%self.session_id,
+                        error=%e,
+                        "Invalid JSON message from client"
+                    );
+                    ctx.text(
+                        serde_json::json!({
+                            "error": "Invalid JSON format"
+                        })
+                        .to_string(),
+                    );
+                    return;
+                }
+
+                debug!(
+                    session_id=%self.session_id,
+                    message_size=text.len(),
+                    "Publishing client message to upstream channel"
+                );
+
+                let channel = format!("session:{}:up", self.session_id);
+                let redis_client = self.redis_client.clone();
+                let text_clone = text.to_string();
+                let session_id = self.session_id.clone();
+
+                ctx.spawn(
+                    async move {
+                        if let Err(e) = redis_client.publish(&channel, &text_clone).await {
+                            error!(
+                                session_id=%session_id,
+                                channel=%channel,
+                                error=%e,
+                                "Failed to publish message to Redis"
+                            );
+                        }
+                    }
+                    .into_actor(self),
+                );
             }
             Ok(ws::Message::Binary(_)) => {
                 warn!("Binary messages not supported");

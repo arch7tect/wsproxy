@@ -14,9 +14,7 @@ fn main() {
     println!("Publishing to channel: {}", channel);
 
     let client = redis::Client::open(redis_url).expect("Failed to create Redis client");
-    let mut con = client
-        .get_connection()
-        .expect("Failed to connect to Redis");
+    let mut con = client.get_connection().expect("Failed to connect to Redis");
 
     println!("Publishing messages every 2 seconds...");
     println!("Press Ctrl+C to stop\n");
@@ -25,7 +23,10 @@ fn main() {
 
     loop {
         counter += 1;
-        let message = format!("{{\"type\": \"data\", \"payload\": \"Message #{}\"}}", counter);
+        let message = format!(
+            "{{\"type\": \"data\", \"payload\": \"Message #{}\"}}",
+            counter
+        );
 
         match con.publish::<_, _, i32>(&channel, &message) {
             Ok(_) => {

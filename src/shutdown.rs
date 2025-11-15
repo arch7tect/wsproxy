@@ -57,7 +57,8 @@ pub async fn wait_for_shutdown(
 
         info!(
             active_connections = active,
-            "Waiting for active connections to close...");
+            "Waiting for active connections to close..."
+        );
         sleep(check_interval).await;
     }
 

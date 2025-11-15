@@ -90,8 +90,10 @@ cargo run --example redis_publisher test-session-123
 ### Example WebSocket Client
 
 ```bash
-cargo run --example ws_client agent1 test-session-123
+cargo run --example ws_bidir_client agent1 test-session-123 my-token
 ```
+
+For more examples and testing scenarios, see [examples/README.md](examples/README.md).
 
 ## API Endpoints
 
