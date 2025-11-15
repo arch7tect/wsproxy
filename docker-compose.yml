@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: wsproxy-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - wsproxy-network
+
+  wsproxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wsproxy
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - REDIS_URL=redis://redis:6379
+      - WS_PING_INTERVAL_SECS=${WS_PING_INTERVAL_SECS:-15}
+      - WS_PING_TIMEOUT_SECS=${WS_PING_TIMEOUT_SECS:-30}
+      - AUTH_TIMEOUT_SECS=${AUTH_TIMEOUT_SECS:-5}
+      - SHUTDOWN_GRACE_PERIOD_SECS=${SHUTDOWN_GRACE_PERIOD_SECS:-30}
+      - MAX_MESSAGE_SIZE_BYTES=${MAX_MESSAGE_SIZE_BYTES:-1048576}
+      - RUST_LOG=${RUST_LOG:-info,wsproxy=debug}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - wsproxy-network
+    healthcheck:
+      test: ["CMD", "/app/wsproxy", "--version"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+networks:
+  wsproxy-network:
+    driver: bridge

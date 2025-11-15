@@ -1,0 +1,33 @@
+# Build artifacts
+target/
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# CI/CD
+.github/
+
+# Test files
+tests/
+.env.test
+
+# Examples (optional - comment out if you want to include them)
+# examples/
+
+# Misc
+.DS_Store
+Thumbs.db
