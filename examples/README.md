@@ -33,7 +33,7 @@ cargo run --example auth_token_setter <session_id> <token>
 cargo run --example auth_token_setter test-session-123 my-secret-token
 ```
 
-This stores the token in Redis key `session:test-session-123:auth`. The token is required for WebSocket authentication and is deleted after successful connection.
+This stores the token in Redis key `session:test-session-123:auth`. The token is required for WebSocket authentication and gets a TTL set after successful connection to enable stateless reconnection.
 
 ### redis_publisher
 
@@ -121,11 +121,12 @@ You should see:
 
 All WebSocket connections require Bearer token authentication. The auth flow:
 
-1. Backend sets token: `SET session:{session_id}:auth {token}`
+1. Backend sets token with initial timeout: `SETEX session:{session_id}:auth {timeout_seconds} {token}`
 2. Client connects with `Authorization: Bearer {token}` header
 3. Wsproxy validates token from Redis
-4. Token is deleted after successful authentication
+4. Token gets TTL reset to grace period to enable stateless reconnection
 5. Connection is established
+6. Token expires after grace period unless refreshed by reconnection
 
 If token is missing, invalid, or expired, wsproxy returns HTTP 401 or 403.
 
@@ -155,5 +156,5 @@ The proxy validates JSON format but does not enforce schema. Invalid JSON is rej
 
 - Ensure Redis is running before starting examples
 - Ensure wsproxy server is running before connecting clients
-- Each WebSocket connection requires a fresh auth token
+- Auth tokens can be reused for reconnection within the grace period
 - Press Ctrl+C to stop any running example

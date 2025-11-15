@@ -8,7 +8,7 @@ WebSocket proxy enabling backends to replace WebSocket connections with Redis Pu
 - Redis Pub/Sub integration for message forwarding
 - Token-based authentication
 - Bidirectional communication between clients and backends
-- Stateless reconnection support with auth token grace periods
+- Stateless reconnection with token expiration after grace period
 
 ## Quick Start
 
@@ -41,6 +41,10 @@ PORT=8080
 
 # Redis
 REDIS_URL=redis://127.0.0.1:6379
+
+# Authentication
+AUTH_TIMEOUT_SECS=5
+AUTH_GRACE_PERIOD_SECS=10800
 
 # WebSocket
 WS_PING_INTERVAL_SECS=30
