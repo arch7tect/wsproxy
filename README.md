@@ -4,13 +4,11 @@ WebSocket proxy enabling backends to replace WebSocket connections with Redis Pu
 
 ## Features
 
-- WebSocket server accepting connections on `/{agent_id}/ws/{session_id}`
+- WebSocket server with session-based connections
 - Redis Pub/Sub integration for message forwarding
-- Graceful shutdown with CancellationToken
-- Heartbeat/ping-pong for connection liveness
-- Structured logging with tracing
-- Health check endpoints (`/health`, `/ready`)
-- Active connection tracking
+- Token-based authentication
+- Bidirectional communication between clients and backends
+- Stateless reconnection support with auth token grace periods
 
 ## Quick Start
 
