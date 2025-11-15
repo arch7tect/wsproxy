@@ -59,74 +59,7 @@ Copy `.env.example` to `.env` and modify as needed.
 
 ## Usage
 
-### WebSocket Connection
-
-Connect to the WebSocket endpoint:
-
-```
-ws://localhost:8080/{agent_id}/ws/{session_id}
-```
-
-Example with websocat:
-```bash
-websocat ws://localhost:8080/agent1/ws/test-session-123
-```
-
-### Publishing Messages via Redis
-
-Publish messages to the Redis channel to forward them to the WebSocket client:
-
-```bash
-# Using redis-cli
-redis-cli PUBLISH "session:test-session-123:down" '{"type": "data", "payload": "Hello from Redis!"}'
-```
-
-Or use the example publisher:
-
-```bash
-cargo run --example redis_publisher test-session-123
-```
-
-### Example WebSocket Client
-
-```bash
-cargo run --example ws_bidir_client agent1 test-session-123 my-token
-```
-
-For more examples and testing scenarios, see [examples/README.md](examples/README.md).
-
-## API Endpoints
-
-### WebSocket
-
-- `GET /{agent_id}/ws/{session_id}` - WebSocket upgrade endpoint
-
-### Health Checks
-
-- `GET /health` - Returns `{"status": "healthy"}`
-- `GET /ready` - Returns `{"status": "ready"}`
-
-## Architecture
-
-See [architecture.md](architecture.md) for detailed architecture documentation.
-
-## Development
-
-### Running Tests
-
-```bash
-cargo test
-```
-
-### Code Style
-
-```bash
-# Format code
-cargo fmt
-
-# Run linter
-cargo clippy
-```
+See [examples/README.md](examples/README.md) for usage examples and testing scenarios.
 
 ## License
 
