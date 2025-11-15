@@ -128,25 +128,6 @@ cargo fmt
 cargo clippy
 ```
 
-### Project Structure
-
-```
-src/
-├── main.rs              # Entry point
-├── config.rs            # Configuration
-├── state.rs             # Application state
-├── shutdown.rs          # Graceful shutdown
-├── handlers/            # HTTP/WebSocket handlers
-│   ├── health.rs
-│   └── websocket.rs
-├── ws/                  # WebSocket session management
-│   ├── session.rs
-│   └── messages.rs
-└── redis/               # Redis integration
-    ├── client.rs
-    └── pubsub.rs
-```
-
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
