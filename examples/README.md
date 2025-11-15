@@ -117,19 +117,6 @@ You should see:
 - Terminal 2: Downstream messages from publisher
 - Terminal 3: Published message confirmations
 
-## Authentication
-
-All WebSocket connections require Bearer token authentication. The auth flow:
-
-1. Backend sets token with initial timeout: `SETEX session:{session_id}:auth {timeout_seconds} {token}`
-2. Client connects with `Authorization: Bearer {token}` header
-3. Wsproxy validates token from Redis
-4. Token gets TTL reset to grace period to enable stateless reconnection
-5. Connection is established
-6. Token expires after grace period unless refreshed by reconnection
-
-If token is missing, invalid, or expired, wsproxy returns HTTP 401 or 403.
-
 ## Environment Variables
 
 Examples use default configuration but respect environment variables:
