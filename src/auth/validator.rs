@@ -9,6 +9,7 @@ pub async fn validate_bearer_token(
     provided_token: Option<&str>,
     redis_client: &RedisClient,
     timeout: Duration,
+    grace_period: Duration,
 ) -> Result<(), AuthError> {
     let provided_token = provided_token.ok_or(AuthError::MissingToken)?;
 
@@ -26,12 +27,17 @@ pub async fn validate_bearer_token(
             Some(token) if token == provided_token => {
                 debug!(session_id = %session_id, "Token validation successful");
 
+                let grace_period_secs = grace_period.as_secs() as i64;
                 let _: () = conn
-                    .del(&redis_key)
+                    .expire(&redis_key, grace_period_secs)
                     .await
                     .map_err(crate::error::RedisError::ConnectionError)?;
 
-                info!(session_id = %session_id, "Auth token deleted after successful validation");
+                info!(
+                    session_id = %session_id,
+                    grace_period_secs = grace_period_secs,
+                    "Auth token TTL set to grace period for reconnection"
+                );
 
                 Ok(())
             }
@@ -84,6 +90,7 @@ mod tests {
             None,
             &setup_redis().await,
             Duration::from_secs(5),
+            Duration::from_secs(60),
         )
         .await;
 
@@ -93,7 +100,7 @@ mod tests {
     #[tokio::test]
     async fn test_valid_token() {
         let redis_client = setup_redis().await;
-        let session_id = "test-valid-token";
+        let session_id = "test-valid-token-grace";
         let token = "valid-token-123";
 
         set_test_token(&redis_client, session_id, token).await;
@@ -103,6 +110,7 @@ mod tests {
             Some(token),
             &redis_client,
             Duration::from_secs(5),
+            Duration::from_secs(60),
         )
         .await;
 
@@ -111,7 +119,9 @@ mod tests {
         let mut conn = redis_client.get_connection().await.unwrap();
         let key = format!("session:{}:auth", session_id);
         let stored: Option<String> = conn.get(&key).await.unwrap();
-        assert!(stored.is_none(), "Token should be deleted after successful auth");
+        assert!(stored.is_some(), "Token should exist with TTL for grace period");
+
+        clear_test_token(&redis_client, session_id).await;
     }
 
     #[tokio::test]
@@ -126,6 +136,7 @@ mod tests {
             Some("wrong-token"),
             &redis_client,
             Duration::from_secs(5),
+            Duration::from_secs(60),
         )
         .await;
 
@@ -146,6 +157,7 @@ mod tests {
             Some("some-token"),
             &redis_client,
             Duration::from_secs(5),
+            Duration::from_secs(60),
         )
         .await;
 
@@ -163,6 +175,7 @@ mod tests {
             Some("token"),
             &redis_client,
             Duration::from_millis(100),
+            Duration::from_secs(60),
         )
         .await;
 

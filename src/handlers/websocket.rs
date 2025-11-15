@@ -33,6 +33,7 @@ pub async fn websocket_handler(
         auth_header,
         &app_state.redis_client,
         app_state.config.auth_timeout(),
+        app_state.config.auth_grace_period(),
     )
     .await
     {

@@ -30,6 +30,9 @@ pub struct Config {
     #[serde(default = "default_auth_timeout")]
     pub auth_timeout_secs: u64,
 
+    #[serde(default = "default_auth_grace_period")]
+    pub auth_grace_period_secs: u64,
+
     // Messages
     #[serde(default = "default_max_message_size")]
     pub max_message_size_bytes: usize,
@@ -65,6 +68,10 @@ impl Config {
         Duration::from_secs(self.auth_timeout_secs)
     }
 
+    pub fn auth_grace_period(&self) -> Duration {
+        Duration::from_secs(self.auth_grace_period_secs)
+    }
+
     pub fn max_message_size(&self) -> usize {
         self.max_message_size_bytes
     }
@@ -96,6 +103,7 @@ impl Default for Config {
             ws_ping_timeout_secs: default_ws_ping_timeout(),
             shutdown_grace_period_secs: default_shutdown_grace_period(),
             auth_timeout_secs: default_auth_timeout(),
+            auth_grace_period_secs: default_auth_grace_period(),
             max_message_size_bytes: default_max_message_size(),
             log_level: default_log_level(),
         }
@@ -128,6 +136,10 @@ fn default_shutdown_grace_period() -> u64 {
 
 fn default_auth_timeout() -> u64 {
     5
+}
+
+fn default_auth_grace_period() -> u64 {
+    10800  // 3 hours
 }
 
 fn default_max_message_size() -> usize {
