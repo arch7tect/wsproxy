@@ -1,8 +1,8 @@
 # wsproxy
 
-WebSocket proxy service for decoupling WebSocket connections from Python FastAPI workers using Redis Pub/Sub.
+WebSocket proxy enabling backends to replace WebSocket connections with Redis Pub/Sub messaging.
 
-## Features (Phase 1 MVP)
+## Features
 
 - WebSocket server accepting connections on `/{agent_id}/ws/{session_id}`
 - Redis Pub/Sub integration for message forwarding
