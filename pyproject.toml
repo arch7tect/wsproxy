@@ -1,0 +1,13 @@
+[project]
+name = "wsproxy-test"
+version = "0.1.0"
+description = "Integration tests for wsproxy"
+requires-python = ">=3.11"
+dependencies = [
+    "websockets>=12.0",
+    "redis>=5.0.0",
+    "aiohttp>=3.9.0",
+]
+
+[tool.uv]
+dev-dependencies = []
