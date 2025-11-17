@@ -1,0 +1,4 @@
+services:
+  wsproxy:
+    environment:
+      - REDIS_URL=redis://host.docker.internal:6379

@@ -18,7 +18,7 @@ COPY src ./src
 COPY examples ./examples
 
 # Build the actual application
-RUN cargo build --release
+RUN touch src/main.rs && cargo build --release
 
 # Stage 2: Runtime image
 FROM debian:bookworm-slim
@@ -34,6 +34,10 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /build/target/release/wsproxy /app/wsproxy
 
+# Copy entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Set ownership
 RUN chown -R wsproxy:wsproxy /app
 
@@ -41,11 +45,11 @@ RUN chown -R wsproxy:wsproxy /app
 USER wsproxy
 
 # Expose port
-EXPOSE 8080
+EXPOSE 4040
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost:4040/health || exit 1
 
 # Run the application
-ENTRYPOINT ["/app/wsproxy"]
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -21,9 +21,11 @@ docs/
 # CI/CD
 .github/
 
-# Test files
+# Test files and environment files
 tests/
-.env.test
+.env
+.env.*
+.env.docker
 
 # Examples (optional - comment out if you want to include them)
 # examples/

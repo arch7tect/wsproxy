@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
+  # Redis service for session state and pub/sub messaging
   redis:
     image: redis:7-alpine
     container_name: wsproxy-redis
     ports:
-      - "6379:6379"
+      - "6379:6379"  # Expose Redis port for local development
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -14,37 +13,31 @@ services:
     networks:
       - wsproxy-network
 
+  # WebSocket proxy service
   wsproxy:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: wsproxy
+    tty: true
     ports:
-      - "${PORT:-8080}:8080"
-    environment:
-      - HOST=0.0.0.0
-      - PORT=8080
-      - REDIS_URL=redis://redis:6379
-      - WS_PING_INTERVAL_SECS=${WS_PING_INTERVAL_SECS:-15}
-      - WS_PING_TIMEOUT_SECS=${WS_PING_TIMEOUT_SECS:-30}
-      - AUTH_TIMEOUT_SECS=${AUTH_TIMEOUT_SECS:-5}
-      - SHUTDOWN_GRACE_PERIOD_SECS=${SHUTDOWN_GRACE_PERIOD_SECS:-30}
-      - MAX_MESSAGE_SIZE_BYTES=${MAX_MESSAGE_SIZE_BYTES:-1048576}
-      - RUST_LOG=${RUST_LOG:-info,wsproxy=debug}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - "4040:4040"  # Map container port 4040 to host port 4040
+    env_file:
+      - .env.docker  # Load environment variables from .env.docker
     depends_on:
       redis:
-        condition: service_healthy
-    restart: unless-stopped
+        condition: service_healthy  # Wait for Redis health check before starting
+    restart: unless-stopped          # Auto-restart on failure
     networks:
       - wsproxy-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:4040/health"]
       interval: 30s
       timeout: 3s
       retries: 3
-      start_period: 5s
+      start_period: 5s  # Grace period for startup
 
+# Network for service communication
 networks:
   wsproxy-network:
     driver: bridge

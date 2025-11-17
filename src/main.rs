@@ -17,7 +17,13 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let config = Config::from_env().expect("Failed to load configuration");
+    let config = match Config::from_env() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Failed to load configuration: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     init_logging(&config);
 
