@@ -16,14 +16,8 @@ use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    let config = match Config::from_env() {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Failed to load configuration: {}", e);
-            std::process::exit(1);
-        }
-    };
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = Config::from_env()?;
 
     init_logging(&config);
 
@@ -32,7 +26,7 @@ async fn main() -> std::io::Result<()> {
 
     let shutdown_token = setup_shutdown_handler();
 
-    let redis_client = RedisClient::new(&config.redis_url).expect("Failed to create Redis client");
+    let redis_client = RedisClient::new(&config.redis_url)?;
     info!("Redis client created");
 
     let app_state = AppState::new(config.clone(), redis_client, shutdown_token.clone());
