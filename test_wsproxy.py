@@ -25,9 +25,9 @@ class WsProxyTester:
         self.health_url = health_url
         self.redis: Optional[aioredis.Redis] = None
 
-    async def setup(self):
+    async def setup(self) -> None:
         """Initialize Redis connection."""
-        self.redis = await aioredis.from_url(self.redis_url, decode_responses=True)
+        self.redis = aioredis.from_url(self.redis_url, decode_responses=True)
         print("✓ Connected to Redis")
 
     async def cleanup(self):
@@ -75,7 +75,7 @@ class WsProxyTester:
         headers = {"Authorization": f"Bearer {token}"}
 
         try:
-            async with websockets.connect(ws_endpoint, additional_headers=headers) as ws:
+            async with websockets.connect(ws_endpoint, additional_headers=headers) as _ws:
                 print(f"✓ WebSocket connected to {ws_endpoint}")
 
                 await asyncio.sleep(0.5)
@@ -98,7 +98,7 @@ class WsProxyTester:
         try:
             async with websockets.connect(
                 ws_endpoint, additional_headers=headers
-            ) as ws:
+            ) as _:
                 print(f"✗ Connection should have failed but succeeded")
                 return False
         except Exception as e:

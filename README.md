@@ -72,6 +72,33 @@ All WebSocket connections require Bearer token authentication. The auth flow:
 
 If token is missing, invalid, or expired, wsproxy returns HTTP 401 or 403.
 
+## Testing
+
+### Integration Tests
+
+Run the full integration test suite using Python with asyncio:
+
+```bash
+# Install dependencies with uv
+uv sync
+
+# Run all tests
+uv run test_wsproxy.py
+```
+
+The test suite covers:
+- WebSocket connection with authentication
+- Authentication failure scenarios
+- Redis → WebSocket message forwarding
+- WebSocket → Redis message forwarding
+- Bidirectional communication
+
+All tests require wsproxy and Redis to be running.
+
+### Manual Testing
+
+See [examples/README.md](examples/README.md) for manual testing scenarios with example clients.
+
 ## Usage
 
 See [examples/README.md](examples/README.md) for usage examples and testing scenarios.
