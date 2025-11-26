@@ -15,6 +15,9 @@ pub struct Config {
     #[serde(default = "default_redis_url")]
     pub redis_url: String,
 
+    #[serde(default = "default_pubsub_pool_size")]
+    pub pubsub_pool_size: usize,
+
     // WebSocket
     #[serde(default = "default_ws_ping_interval")]
     pub ws_ping_interval_secs: u64,
@@ -99,6 +102,7 @@ impl Default for Config {
             host: default_host(),
             port: default_port(),
             redis_url: default_redis_url(),
+            pubsub_pool_size: default_pubsub_pool_size(),
             ws_ping_interval_secs: default_ws_ping_interval(),
             ws_ping_timeout_secs: default_ws_ping_timeout(),
             shutdown_grace_period_secs: default_shutdown_grace_period(),
@@ -120,6 +124,10 @@ fn default_port() -> u16 {
 
 fn default_redis_url() -> String {
     "redis://127.0.0.1:6379".to_string()
+}
+
+fn default_pubsub_pool_size() -> usize {
+    16
 }
 
 fn default_ws_ping_interval() -> u64 {

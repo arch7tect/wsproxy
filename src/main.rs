@@ -7,9 +7,10 @@ mod shutdown;
 mod state;
 mod ws;
 
+use actix::Actor;
 use actix_web::{web, App, HttpServer};
 use config::Config;
-use redis::RedisClient;
+use redis::{PubSubManager, RedisClient};
 use shutdown::{setup_shutdown_handler, wait_for_shutdown};
 use state::AppState;
 use tracing::info;
@@ -29,7 +30,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let redis_client = RedisClient::new(&config.redis_url)?;
     info!("Redis client created");
 
-    let app_state = AppState::new(config.clone(), redis_client, shutdown_token.clone());
+    let pubsub_manager = PubSubManager::new(redis_client.clone(), config.pubsub_pool_size).start();
+    info!(pool_size=%config.pubsub_pool_size, "PubSubManager started");
+
+    let app_state = AppState::new(
+        config.clone(),
+        redis_client,
+        pubsub_manager,
+        shutdown_token.clone(),
+    );
     let app_state_clone = app_state.clone();
 
     let bind_address = format!("{}:{}", config.host, config.port);

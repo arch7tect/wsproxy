@@ -1,4 +1,4 @@
-use crate::redis::{subscribe_to_channel, RedisClient};
+use crate::redis::{PubSubManager, PubSubMessage, RedisClient, RegisterSession, UnregisterSession};
 use crate::ws::messages::{RedisMessage, Shutdown};
 use actix::prelude::*;
 use actix_web_actors::ws;
@@ -17,6 +17,8 @@ pub struct WsSession {
     pub agent_id: String,
     /// Redis client
     pub redis_client: RedisClient,
+    /// PubSub manager
+    pub pubsub_manager: Addr<PubSubManager>,
     /// Cancellation token for shutdown
     pub shutdown_token: CancellationToken,
     /// Last heartbeat timestamp
@@ -29,6 +31,14 @@ pub struct WsSession {
     pub max_message_size: usize,
     /// Connection counter callback
     pub on_disconnect: Option<Box<dyn Fn() + Send>>,
+    /// Count of messages forwarded from PubSub to the WebSocket
+    pub ws_sent: usize,
+    /// Count of messages received from WebSocket/published upstream
+    pub ws_recv: usize,
+    /// Count of upstream publishes that succeeded
+    pub redis_published_up: usize,
+    /// Count of upstream publishes that failed
+    pub redis_publish_failures: usize,
 }
 
 impl WsSession {
@@ -36,6 +46,7 @@ impl WsSession {
         session_id: String,
         agent_id: String,
         redis_client: RedisClient,
+        pubsub_manager: Addr<PubSubManager>,
         shutdown_token: CancellationToken,
         hb_interval: Duration,
         hb_timeout: Duration,
@@ -46,12 +57,17 @@ impl WsSession {
             session_id,
             agent_id,
             redis_client,
+            pubsub_manager,
             shutdown_token,
             hb: Instant::now(),
             hb_interval,
             hb_timeout,
             max_message_size,
             on_disconnect: None,
+            ws_sent: 0,
+            ws_recv: 0,
+            redis_published_up: 0,
+            redis_publish_failures: 0,
         }
     }
 
@@ -80,29 +96,18 @@ impl WsSession {
         });
     }
 
-    /// Subscribe to Redis Pub/Sub channel
-    fn subscribe_to_redis(&self, ctx: &mut ws::WebsocketContext<Self>) {
+    /// Register with PubSubManager
+    fn register_with_pubsub_manager(&self, ctx: &mut ws::WebsocketContext<Self>) {
         let session_id = self.session_id.clone();
-        let redis_client = self.redis_client.clone();
-        let shutdown_token = self.shutdown_token.clone();
-        let addr = ctx.address();
+        let pubsub_manager = self.pubsub_manager.clone();
+        let addr = ctx.address().recipient();
 
-        ctx.spawn(
-            async move {
-                match redis_client.get_pubsub().await {
-                    Ok(pubsub) => {
-                        let channel = format!("session:{}:down", session_id);
-                        info!(channel=%channel, "Starting Redis subscription");
+        info!(session_id=%session_id, "Registering with PubSubManager");
 
-                        subscribe_to_channel(channel, addr, pubsub, shutdown_token).await;
-                    }
-                    Err(e) => {
-                        error!(error=%e, "Failed to get Redis pubsub connection");
-                    }
-                }
-            }
-            .into_actor(self),
-        );
+        pubsub_manager.do_send(RegisterSession {
+            session_id,
+            addr,
+        });
     }
 }
 
@@ -116,7 +121,7 @@ impl Actor for WsSession {
         );
 
         self.start_heartbeat(ctx);
-        self.subscribe_to_redis(ctx);
+        self.register_with_pubsub_manager(ctx);
 
         let shutdown_token = self.shutdown_token.clone();
         ctx.spawn(
@@ -134,8 +139,20 @@ impl Actor for WsSession {
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         info!(
             id=%self.id, session_id=%self.session_id,
+            ws_sent=%self.ws_sent,
+            ws_recv=%self.ws_recv,
+            redis_published_up=%self.redis_published_up,
+            redis_publish_failures=%self.redis_publish_failures,
             "WebSocket session stopped"
         );
+
+        self.pubsub_manager.do_send(UnregisterSession {
+            session_id: self.session_id.clone(),
+            ws_recv_messages: self.ws_recv,
+            ws_sent_messages: self.ws_sent,
+            redis_down_messages: self.ws_sent,
+            redis_up_messages: self.redis_published_up,
+        });
 
         if let Some(ref callback) = self.on_disconnect {
             callback();
@@ -194,24 +211,35 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
                     message_size=text.len(),
                     "Publishing client message to upstream channel"
                 );
+                self.ws_recv += 1;
 
                 let channel = format!("session:{}:up", self.session_id);
                 let redis_client = self.redis_client.clone();
                 let text_clone = text.to_string();
                 let session_id = self.session_id.clone();
+                let publish_channel = channel.clone();
 
                 ctx.spawn(
                     async move {
-                        if let Err(e) = redis_client.publish(&channel, &text_clone).await {
-                            error!(
-                                session_id=%session_id,
-                                channel=%channel,
-                                error=%e,
-                                "Failed to publish message to Redis"
-                            );
-                        }
+                        (session_id, channel.clone(), redis_client.publish(&publish_channel, &text_clone).await)
                     }
-                    .into_actor(self),
+                    .into_actor(self)
+                    .map(move |(session_id, channel, result), act, _ctx| {
+                        match result {
+                            Ok(_) => {
+                                act.redis_published_up += 1;
+                            }
+                            Err(e) => {
+                                act.redis_publish_failures += 1;
+                                error!(
+                                    session_id=%session_id,
+                                    channel=%channel,
+                                    error=%e,
+                                    "Failed to publish message to Redis"
+                                );
+                            }
+                        }
+                    }),
                 );
             }
             Ok(ws::Message::Binary(_)) => {
@@ -231,7 +259,22 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
     }
 }
 
-/// Handle messages from Redis Pub/Sub
+/// Handle messages from PubSubManager
+impl Handler<PubSubMessage> for WsSession {
+    type Result = ();
+
+    fn handle(&mut self, msg: PubSubMessage, ctx: &mut Self::Context) {
+        debug!(
+            session_id=%self.session_id,
+            payload=%msg.payload,
+            "Received message from PubSubManager, forwarding to WebSocket"
+        );
+        self.ws_sent += 1;
+        ctx.text(msg.payload);
+    }
+}
+
+/// Handle messages from Redis Pub/Sub (legacy, kept for compatibility)
 impl Handler<RedisMessage> for WsSession {
     type Result = ();
 

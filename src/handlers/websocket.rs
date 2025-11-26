@@ -1,6 +1,7 @@
 use crate::auth::validate_bearer_token;
 use crate::error::AuthError;
 use crate::state::AppState;
+use crate::redis::EnsureSubscription;
 use crate::ws::WsSession;
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
@@ -61,10 +62,37 @@ pub async fn websocket_handler(
     let count = app_state.increment_connections();
     info!(active_connections = count, "New connection");
 
+    match app_state
+        .pubsub_manager
+        .send(EnsureSubscription {
+            session_id: session_id.clone(),
+        })
+        .await
+    {
+        Ok(Ok(())) => {}
+        Ok(Err(msg)) => {
+            error!(
+                session_id = %session_id,
+                error = %msg,
+                "Redis subscription not ready before handshake"
+            );
+            return Ok(HttpResponse::ServiceUnavailable().body("Unable to prepare session"));
+        }
+        Err(e) => {
+            error!(
+                session_id = %session_id,
+                error = %e,
+                "Failed to ensure Redis subscription before handshake"
+            );
+            return Ok(HttpResponse::ServiceUnavailable().body("Unable to prepare session"));
+        }
+    }
+
     let mut session = WsSession::new(
         session_id.clone(),
         agent_id.clone(),
         app_state.redis_client.clone(),
+        app_state.pubsub_manager.clone(),
         app_state.shutdown_token.clone(),
         app_state.config.ws_ping_interval(),
         app_state.config.ws_ping_timeout(),

@@ -83,6 +83,61 @@ cargo run --example ws_bidir_client agent1 test-session-123 my-secret-token
 
 Connects to wsproxy, sends ping messages every 3 seconds to the upstream channel, and prints received downstream messages.
 
+### load_test
+
+Load testing tool to measure message latency at different connection scales.
+
+**Usage:**
+```bash
+cargo run --example load_test <num_workers> <warmup_secs> <test_duration_secs> <message_interval_secs> <ws_host> <ws_port>
+```
+
+**Example:**
+```bash
+cargo run --example load_test 50 3 10 1 127.0.0.1 4040
+```
+
+This runs a load test with:
+- 50 concurrent WebSocket connections
+- 3 seconds warmup period
+- 10 seconds measurement period
+- 1 second message interval
+- wsproxy at 127.0.0.1:4040
+
+Each worker:
+1. Creates an auth token in Redis
+2. Establishes a WebSocket connection
+3. Publishes messages via Redis pub/sub at specified interval
+4. Receives messages through WebSocket
+5. Measures end-to-end latency
+
+After the test completes, statistics are printed:
+- Total measurements collected
+- Latency: Min, Average, P50, P95, P99, Max
+- Error count
+
+**Example output:**
+```
+=== Load Test Results ===
+Total measurements: 550
+Errors: 0
+
+Latency Statistics:
+  Min:     678.501µs
+  Average: 2.63634ms
+  P50:     2.400249ms
+  P95:     5.094876ms
+  P99:     5.822917ms
+  Max:     6.390793ms
+```
+
+**Performance notes:**
+- Latencies increase with connection count
+- Typical results on local machine:
+  - 2 workers: ~1.5ms average
+  - 50 workers: ~2.6ms average
+  - 100 workers: ~2.9ms average
+
 ## Testing Bidirectional Communication
 
 Test full bidirectional message flow.

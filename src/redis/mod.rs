@@ -1,5 +1,7 @@
 mod client;
-mod pubsub;
+mod pubsub_manager;
 
 pub use client::RedisClient;
-pub use pubsub::subscribe_to_channel;
+pub use pubsub_manager::{
+    EnsureSubscription, PubSubManager, PubSubMessage, RegisterSession, UnregisterSession,
+};
