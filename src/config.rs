@@ -127,7 +127,7 @@ fn default_redis_url() -> String {
 }
 
 fn default_pubsub_pool_size() -> usize {
-    16
+    512  // Optimized for 10,000+ connections (20:1 ratio)
 }
 
 fn default_ws_ping_interval() -> u64 {
@@ -139,11 +139,11 @@ fn default_ws_ping_timeout() -> u64 {
 }
 
 fn default_shutdown_grace_period() -> u64 {
-    30
+    120  // Extended for high scale (10,000+ connections)
 }
 
 fn default_auth_timeout() -> u64 {
-    5
+    2
 }
 
 fn default_auth_grace_period() -> u64 {
