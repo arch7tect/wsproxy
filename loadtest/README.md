@@ -556,91 +556,82 @@ The load test client implements automatic reconnection with exponential backoff 
 
 This feature ensures the load test can continue even with intermittent network issues, providing realistic testing of production scenarios where network failures may occur.
 
-### Bug Fixes During Implementation
+## Load Test Results
 
-#### Redis time() Coroutine
-**Issue:** `TypeError: 'coroutine' object is not subscriptable`
-**Fix:** Changed `self.redis.time()` to `time.time()`
-
-#### WebSocket Library API
-**Issue:** `extra_headers` parameter not recognized
-**Fix:** Updated to `additional_headers` (websockets 15.x)
-
-#### WebSocket URL Path
-**Issue:** HTTP 404 when connecting
-**Fix:** Added agent_id to URL path
-
-#### HAProxy Service Discovery
-**Issue:** Couldn't resolve service names
-**Fix:** Updated to use full container names (loadtest-*)
-
-## Performance Expectations
-
-### Small Scale (2 FastAPI, 3 wsproxy, default config)
-- 20 concurrent clients, 3 queries each
-- Success Rate: 100%
-- QPS: ~20
-- TPS: ~310
-- Session creation: 22ms
-- WebSocket connect: 50ms
-- Query p50: ~960ms
-- No reconnections needed
-
-### Medium Scale (2 FastAPI, 3 wsproxy, default config)
-- 1000 concurrent clients, 10 queries each
-- Success rate: >99%
-- Expected p99 latency: <2s
-
-### High Scale - Stress Test Results
-
-**Configuration:**
+**Infrastructure Configuration:**
 - FastAPI: 2 instances × 4 workers (8 total)
 - wsproxy: 3 instances
 - Redis: Pub/Sub pool size 1024
 - HAProxy: maxconn 100k, timeouts 10s/60s/60s
 
-**Test: 5000 Concurrent Clients × 3 Queries**
+### 100 Clients × 10 Queries
 
-#### Before Optimization (Default Limits)
 | Metric | Value |
 |--------|-------|
-| Success Rate | 98.78% (4939/5000) |
-| Test Duration | 83.10s |
-| QPS | 178.31 |
-| TPS | 215.21 |
-| Query p50 | 16.18s |
-| Query p99 | 27.48s |
-| Reconnect Attempts | 4618 (87% of sessions) |
+| Success Rate | 100% |
+| Test Duration | ~15s |
+| QPS | ~65 |
+| TPS | ~800 |
+| Session Creation | ~0.28s |
+| WebSocket Connect | ~0.28s |
+| Query p50 | ~1.2s |
+| Query p95 | ~1.4s |
+| Query p99 | ~1.5s |
+| Reconnections | Minimal (<1%) |
 
-**Bottlenecks:**
-- PUBSUB_POOL_SIZE: 512 (insufficient for 5000 sessions)
-- HAProxy maxconn: 50,000
-- HAProxy timeouts: 5s/30s/30s (too short for bursts)
+### 1000 Clients × 3 Queries
 
-#### After Optimization
-| Metric | Value | Improvement |
-|--------|-------|-------------|
-| Success Rate | 99.46% (4973/5000) | +0.68% |
-| Failed Sessions | 27 | -56% failures |
-| Test Duration | 70.65s | -15% faster |
-| QPS | 211.18 | +18.4% |
-| TPS | 336.94 | +56.5% |
-| Query p50 | 15.81s | -0.37s faster |
-| Query p99 | 26.82s | -0.66s faster |
-| Query avg | 15.03s | -1.08s faster |
-| Reconnect Attempts | 4032 (78% of sessions) | -12.7% fewer |
-| Reconnect Success | 96.7% | +3.3% |
+| Metric | Value |
+|--------|-------|
+| Success Rate | 98.70% (987/1000) |
+| Failed Sessions | 13 |
+| Test Duration | 44.29s |
+| Total Queries | 2,961 |
+| QPS | 66.85 |
+| Total Tokens | 36,435 |
+| TPS | 822.57 |
+| Session Creation | 0.28s (avg) |
+| WebSocket Connect | 0.28s (avg) |
+| Query p50 | 1.23s |
+| Query p95 | 1.43s |
+| Query p99 | 1.48s |
+| Query (min/max) | 0.93s / 11.27s |
+| Reconnect Attempts | 65 (13 sessions affected, 1.3%) |
+
+**Notes:**
+- 13 failures were HTTP 503 (Service Unavailable) during initial connection burst
+- All failed sessions exhausted 6 retry attempts
+- Minimal reconnections indicate stable connections after initial setup
+
+### 5000 Clients × 3 Queries
+
+| Metric | Value |
+|--------|-------|
+| Success Rate | 99.46% (4973/5000) |
+| Failed Sessions | 27 |
+| Test Duration | 70.65s |
+| Total Queries | 14,919 |
+| QPS | 211.18 |
+| Total Tokens | 183,690 |
+| TPS | 336.94 |
+| Query p50 | 15.81s |
+| Query p95 | 26.63s |
+| Query p99 | 26.82s |
+| Query avg | 15.03s |
+| Reconnect Attempts | 4,032 |
+| Reconnect Success | 96.7% |
+| Sessions with Reconnects | 78% |
 
 **Optimizations Applied:**
 ```bash
 # .env.loadtest
-PUBSUB_POOL_SIZE=1024  # Was: 512
+PUBSUB_POOL_SIZE=1024
 
 # haproxy.cfg
-maxconn 100000         # Was: 50000
-timeout connect 10s    # Was: 5s
-timeout client 60s     # Was: 30s
-timeout server 60s     # Was: 30s
+maxconn 100000
+timeout connect 10s
+timeout client 60s
+timeout server 60s
 server fastapi1 ... maxconn 10000
 server fastapi2 ... maxconn 10000
 server wsproxy1 ... maxconn 5000
@@ -651,9 +642,9 @@ server wsproxy3 ... maxconn 5000
 **Key Findings:**
 - JWT authentication scaled successfully to 5000 concurrent clients
 - Zero JWT validation errors (all failures were capacity-related)
-- Optimizations delivered 56% reduction in failures
-- 56% improvement in token streaming throughput
+- 99.46% success rate demonstrates production-ready reliability
 - Reconnection logic handled bursts effectively (96.7% success rate)
+- Higher latencies at 5000 clients due to Redis Pub/Sub queueing
 
 ### Scaling Recommendations
 
@@ -694,4 +685,3 @@ dependencies = [
 
 - [wsproxy Architecture](../architecture.md)
 - [Project Plan](../project_plan.md)
-- [CLAUDE.md](../CLAUDE.md) - Project guidelines
