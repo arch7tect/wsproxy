@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: loadtest-redis
+    command: redis-server /etc/redis/redis.conf
+    volumes:
+      - ../../redis_100percent.conf:/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - loadtest
+
+  haproxy:
+    image: haproxy:2.9
+    container_name: loadtest-haproxy
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+      - "8404:8404"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - redis
+    networks:
+      - loadtest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8404/stats"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  wsproxy-1:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: loadtest-wsproxy-1
+    env_file:
+      - .env.loadtest
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - loadtest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4040/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  wsproxy-2:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: loadtest-wsproxy-2
+    env_file:
+      - .env.loadtest
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - loadtest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4040/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  wsproxy-3:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: loadtest-wsproxy-3
+    env_file:
+      - .env.loadtest
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - loadtest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4040/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  fastapi-1:
+    build:
+      context: ../..
+      dockerfile: loadtest/docker/Dockerfile.fastapi
+    container_name: loadtest-fastapi-1
+    env_file:
+      - .env.loadtest
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - loadtest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  fastapi-2:
+    build:
+      context: ../..
+      dockerfile: loadtest/docker/Dockerfile.fastapi
+    container_name: loadtest-fastapi-2
+    env_file:
+      - .env.loadtest
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - loadtest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+networks:
+  loadtest:
+    driver: bridge

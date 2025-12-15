@@ -29,12 +29,12 @@ pub struct Config {
     #[serde(default = "default_shutdown_grace_period")]
     pub shutdown_grace_period_secs: u64,
 
-    // Auth
-    #[serde(default = "default_auth_timeout")]
-    pub auth_timeout_secs: u64,
+    // JWT Authentication
+    #[serde(default = "default_jwt_secret")]
+    pub jwt_secret: String,
 
-    #[serde(default = "default_auth_grace_period")]
-    pub auth_grace_period_secs: u64,
+    #[serde(default = "default_jwt_algorithm")]
+    pub jwt_algorithm: String,
 
     // Messages
     #[serde(default = "default_max_message_size")]
@@ -67,14 +67,6 @@ impl Config {
         Duration::from_secs(self.shutdown_grace_period_secs)
     }
 
-    pub fn auth_timeout(&self) -> Duration {
-        Duration::from_secs(self.auth_timeout_secs)
-    }
-
-    pub fn auth_grace_period(&self) -> Duration {
-        Duration::from_secs(self.auth_grace_period_secs)
-    }
-
     pub fn max_message_size(&self) -> usize {
         self.max_message_size_bytes
     }
@@ -92,6 +84,10 @@ impl Config {
             return Err(ConfigError::InvalidMaxMessageSize);
         }
 
+        if self.jwt_secret.is_empty() || self.jwt_secret.len() < 32 {
+            return Err(ConfigError::JwtSecretInvalid);
+        }
+
         Ok(())
     }
 }
@@ -106,8 +102,8 @@ impl Default for Config {
             ws_ping_interval_secs: default_ws_ping_interval(),
             ws_ping_timeout_secs: default_ws_ping_timeout(),
             shutdown_grace_period_secs: default_shutdown_grace_period(),
-            auth_timeout_secs: default_auth_timeout(),
-            auth_grace_period_secs: default_auth_grace_period(),
+            jwt_secret: default_jwt_secret(),
+            jwt_algorithm: default_jwt_algorithm(),
             max_message_size_bytes: default_max_message_size(),
             log_level: default_log_level(),
         }
@@ -142,12 +138,12 @@ fn default_shutdown_grace_period() -> u64 {
     120  // Extended for high scale (10,000+ connections)
 }
 
-fn default_auth_timeout() -> u64 {
-    2
+fn default_jwt_secret() -> String {
+    String::new()  // Must be provided via environment
 }
 
-fn default_auth_grace_period() -> u64 {
-    10800  // 3 hours
+fn default_jwt_algorithm() -> String {
+    "HS256".to_string()
 }
 
 fn default_max_message_size() -> usize {

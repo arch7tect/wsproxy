@@ -1,4 +1,4 @@
-use crate::auth::validate_bearer_token;
+use crate::auth::validate_jwt_token;
 use crate::error::AuthError;
 use crate::state::AppState;
 use crate::redis::EnsureSubscription;
@@ -29,17 +29,13 @@ pub async fn websocket_handler(
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "));
 
-    match validate_bearer_token(
-        &session_id,
-        auth_header,
-        &app_state.redis_client,
-        app_state.config.auth_timeout(),
-        app_state.config.auth_grace_period(),
-    )
-    .await
-    {
-        Ok(()) => {
-            info!(session_id = %session_id, "Authentication successful");
+    match validate_jwt_token(auth_header, &app_state.config.jwt_secret, &session_id) {
+        Ok(claims) => {
+            info!(
+                session_id = %session_id,
+                iat = claims.iat,
+                "JWT authentication successful"
+            );
         }
         Err(AuthError::MissingToken) => {
             warn!(session_id = %session_id, "Missing authorization token");
@@ -49,12 +45,12 @@ pub async fn websocket_handler(
             warn!(session_id = %session_id, "Invalid authorization token");
             return Ok(HttpResponse::Forbidden().body("Invalid authorization token"));
         }
-        Err(AuthError::Timeout) => {
-            error!(session_id = %session_id, "Authentication timeout");
-            return Ok(HttpResponse::GatewayTimeout().body("Authentication timeout"));
+        Err(AuthError::JwtError(e)) => {
+            warn!(session_id = %session_id, error = %e, "JWT validation error");
+            return Ok(HttpResponse::Forbidden().body("Invalid JWT token"));
         }
-        Err(AuthError::RedisError(e)) => {
-            error!(session_id = %session_id, error = %e, "Redis error during authentication");
+        Err(e) => {
+            error!(session_id = %session_id, error = %e, "Unexpected authentication error");
             return Ok(HttpResponse::InternalServerError().body("Internal server error"));
         }
     }

@@ -11,6 +11,9 @@ pub enum ConfigError {
     #[error("MAX_MESSAGE_SIZE_BYTES must be greater than 0")]
     InvalidMaxMessageSize,
 
+    #[error("JWT_SECRET must be at least 32 bytes")]
+    JwtSecretInvalid,
+
     #[error("Failed to load environment variables: {0}")]
     EnvError(#[from] envy::Error),
 }
@@ -62,6 +65,9 @@ pub enum AuthError {
 
     #[error("Authentication timeout")]
     Timeout,
+
+    #[error("JWT token invalid: {0}")]
+    JwtError(String),
 
     #[error("Redis error: {0}")]
     RedisError(#[from] RedisError),

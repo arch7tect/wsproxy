@@ -1,3 +1,3 @@
-mod validator;
+mod jwt_validator;
 
-pub use validator::validate_bearer_token;
+pub use jwt_validator::{validate_jwt_token, Claims};

@@ -1,0 +1,25 @@
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir uv
+
+COPY pyproject.toml .python-version ./
+RUN uv pip install --system -r pyproject.toml
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin/granian /usr/local/bin/granian
+
+COPY loadtest ./loadtest
+
+RUN useradd -m -u 1000 fastapi && chown -R fastapi:fastapi /app
+
+USER fastapi
+
+EXPOSE 8000
+
+CMD ["granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "loadtest.server.main:app"]

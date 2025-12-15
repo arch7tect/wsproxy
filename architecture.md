@@ -135,8 +135,8 @@ Introduce a dedicated WebSocket proxy (`wsproxy`) to decouple WebSocket connecti
 **Solution**: Complete WebSocket handshake only after successful Redis subscription.
 
 **Connection Flow**:
-1. Client initiates WebSocket connection to `wsproxy` with `session_id` (sends HTTP Upgrade request with `Authorization: Bearer {token}` header)
-2. `wsproxy` validates Bearer token (see Authentication section)
+1. Client initiates WebSocket connection to `wsproxy` with `session_id` (sends HTTP Upgrade request with `Authorization: Bearer {jwt_token}` header)
+2. `wsproxy` validates JWT token signature and session_id claim (stateless, see Authentication section)
 3. `wsproxy` subscribes to Redis channel `session:{session_id}:down` (and `:up` if bidirectional enabled)
 4. **After successful subscription**, `wsproxy` completes WebSocket handshake (sends HTTP 101 Switching Protocols)
 5. Client receives WebSocket connection established event and immediately makes HTTP request to agent to start generation
@@ -231,53 +231,63 @@ Introduce a dedicated WebSocket proxy (`wsproxy`) to decouple WebSocket connecti
 
 **Problem**: Any client knowing `session_id` can connect and receive stream data.
 
-**Solution**: Bearer token authentication with Redis-based validation. Each agent has its own bearer token, client already knows the token for the agent it's connecting to.
+**Solution**: JWT-based stateless authentication using HS256 (HMAC-SHA256). Each session is authenticated via cryptographically signed tokens without Redis lookups.
 
 **Authentication Flow**:
 
 1. **Session creation** (agent responsibility):
-   - Client sends HTTP request to agent to create session (with `Authorization: Bearer {token}` header)
-   - Agent validates bearer token
+   - Client sends HTTP request to agent to create session
    - Agent generates `session_id` (UUID)
-   - Agent stores token in Redis: `SET session:{session_id}:auth {bearer_token} EX {ttl}`
-     - Key: `session:{session_id}:auth`
-     - Value: the bearer token string
-     - TTL: configurable (default: 300 seconds / 5 minutes)
-   - Agent returns `session_id` to client
+   - Agent generates JWT token with claims:
+     - `session_id`: the session UUID
+     - `iat`: issued at timestamp (Unix epoch)
+   - Token signed with shared secret using HS256 algorithm
+   - Agent returns both `session_id` and JWT `auth_token` to client
 
 2. **WebSocket connection** (client):
    - Client connects to: `wss://wsproxy/{agent_id}/ws/{session_id}`
-   - Client includes header: `Authorization: Bearer {token}`
-   - Same bearer token that was used for session creation
+   - Client includes header: `Authorization: Bearer {jwt_token}`
 
 3. **Token validation** (`wsproxy` responsibility):
-   - Extract bearer token from `Authorization` header
-   - Read expected token from Redis: `GET session:{session_id}:auth`
-   - Compare tokens:
-     - If match: proceed with Redis subscription and complete handshake
-     - If mismatch: reject with HTTP 403 Forbidden
-     - If Redis key not found: reject with HTTP 401 Unauthorized (session expired or doesn't exist)
-   - Delete auth token from Redis after successful validation: `DEL session:{session_id}:auth`
-     - Prevents token reuse for new connections
-     - Single-use authentication token per WebSocket connection
+   - Extract JWT token from `Authorization` header
+   - Validate JWT signature using shared secret (stateless, CPU-only)
+   - Verify `session_id` claim matches URL path parameter
+   - If valid: proceed with Redis subscription and complete handshake
+   - If invalid: reject with appropriate HTTP error code
+
+**JWT Configuration**:
+- **Algorithm**: HS256 (symmetric HMAC-SHA256)
+- **Required Claims**:
+  - `session_id`: Must match the session_id in WebSocket URL path
+  - `iat`: Issued at timestamp (Unix epoch)
+- **No Expiry**: Tokens do not include `exp` claim, valid indefinitely
+- **Secret Management**: Same `JWT_SECRET` must be configured on all agent servers and wsproxy instances
 
 **Requirements**:
-- **Redis key naming**: `session:{session_id}:auth` for storing bearer tokens
-- **Token TTL**: Configurable via agent (recommended: 5 minutes)
-- **Authorization header format**: `Authorization: Bearer {token}`
-- **Token cleanup**: `wsproxy` deletes auth token after validation to prevent reuse
-- **Validation timeout**: Redis GET operation timeout (default: 1s)
+- **Secret length**: Minimum 32 bytes (256 bits)
+- **Authorization header format**: `Authorization: Bearer {jwt_token}`
+- **Validation**: Stateless signature verification (no Redis lookup)
+- **Session ID verification**: JWT claim must match URL path
 
 **Error responses**:
-- 400 Bad Request: Missing `Authorization` header or invalid format
-- 401 Unauthorized: Token not found in Redis (session doesn't exist or expired)
-- 403 Forbidden: Token found but doesn't match provided token
-- 503 Service Unavailable: Redis is unreachable during validation
+- 401 Unauthorized: Missing `Authorization` header
+- 403 Forbidden: Invalid JWT signature, malformed token, or session_id mismatch
+
+**Performance Benefits**:
+- **Stateless validation**: No Redis RTT for authentication
+- **Fast**: ~0.1-1ms vs ~5-20ms for Redis-based validation (10-20x improvement)
+- **Scalable**: No shared state, pure CPU-bound validation
 
 **Reconnection handling**:
-- For reconnection support, agent must store a new auth token in Redis before client reconnects
-- Agent can expose endpoint for refreshing session auth: `POST /sessions/{session_id}/refresh-auth`
-- This creates a new temporary auth token for reconnection
+- Same JWT token can be reused for reconnections
+- No token refresh needed (tokens have no expiry)
+- Client reconnects with original JWT token
+- Validation flow identical to initial connection
+
+**Security Considerations**:
+- Tokens valid indefinitely - rely on secret rotation to invalidate
+- In production, use secret management service (Vault, AWS Secrets Manager)
+- Secret rotation requires coordinated update across all services
 
 ### 6. Session Lifecycle and Cleanup
 
@@ -366,7 +376,7 @@ Introduce a dedicated WebSocket proxy (`wsproxy`) to decouple WebSocket connecti
 
 **Metrics** (Prometheus format at `/metrics`):
 - `wsproxy_active_connections` - current WebSocket connections (gauge)
-- `wsproxy_connections_total{status="success|auth_failed|error"}` - connection attempts (counter)
+- `wsproxy_connections_total{status="success|jwt_invalid|error"}` - connection attempts (counter)
 - `wsproxy_messages_received_total{source="redis"}` - messages from Redis (counter)
 - `wsproxy_messages_sent_total{dest="websocket"}` - messages to clients (counter)
 - `wsproxy_message_latency_seconds{quantile="0.5|0.95|0.99"}` - Redis→WebSocket latency (histogram)
@@ -384,7 +394,7 @@ Introduce a dedicated WebSocket proxy (`wsproxy`) to decouple WebSocket connecti
   - `error`: error details if applicable
 - Log key events:
   - Connection open/close with session_id
-  - Authentication success/failure
+  - JWT validation success/failure
   - Redis subscription/unsubscription
   - Errors and exceptions
   - Backpressure events

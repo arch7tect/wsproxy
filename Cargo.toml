@@ -32,6 +32,9 @@ tokio-util = "0.7"
 # Error handling
 thiserror = "1"
 
+# JWT
+jsonwebtoken = "9"
+
 # Configuration
 dotenvy = "0.15"
 envy = "0.4"

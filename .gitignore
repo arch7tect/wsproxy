@@ -21,6 +21,10 @@ Thumbs.db
 
 # Logs
 *.log
-/CLAUDE.md
+
+# Python
 .venv/
-src/wsproxy_test.egg-info/
+*.egg-info/
+__pycache__/
+*.pyc
+loadtest_results/
